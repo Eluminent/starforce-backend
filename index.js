@@ -3,6 +3,7 @@ import cors from "cors";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import rateLimit from "express-rate-limit";
+import dotenv from "dotenv";
 
 const app = express();
 
@@ -12,7 +13,7 @@ app.use(express.json());
 // In-memory user storage (for demonstration purposes only)
 const users = [];
 
-
+dotenv.config();
 
 //Limit number of user requests
 const limiter = rateLimit({
@@ -52,6 +53,8 @@ async function register(request, result) {
 async function login(req, res) {
   const { username, password } = req.body;
 
+  
+
   const user = users.find((u) => u.username === username);
   if (!user) {
     return res.status(400).send("User not found");
@@ -70,19 +73,41 @@ async function login(req, res) {
 }
 
 
+function authMiddleware(req, res, next){
+  let token;
+  if (req.headers.authorization){
+
+    const parts = req.headers.authorization.split("");
+    token = parts[1];
+  }
+  else{
+    return res.status(401).send("No token provided");
+  }
+
+  try {
+    const decoded = jwt.verify(
+      token,
+      process.env.JWT_SECRET
+    );
+    next();
+  } catch{
+    res.status(401).send("Token mismatch");
+  }
+
+}
 app.post("/register", register);
 app.post("/login", limiter, login);
-
-app.get("/profile", authMiddleware, (request, response) => {
-  response.json({
-    message: "You have been authenticated!",
-    user: request.user
-  });
-});
 
 app.get("/", (req, res) => {
   res.send("Backend is running");
 });
+
+app.get("/profile", authMiddleware, (req, res) => {
+  res.json({
+    message: "You have been authenticated!",
+    user: req.user
+  });
+})
 
 app.listen(3001, () => {
   console.log("Server running on http://localhost:3001");
